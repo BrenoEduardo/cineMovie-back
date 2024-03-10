@@ -1,12 +1,10 @@
 const mongoose = require('../database/index');
 const bcryptjs = require("bcryptjs");
 
-const loginSchema = new mongoose.Schema({
+const usersSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: function() {
-            return this.typeAccount === 'client';
-        }
+        required: true
     },
     email: {
         type: String,
@@ -19,31 +17,18 @@ const loginSchema = new mongoose.Schema({
         required: true,
         select: false
     },
-    typeAccount: {
+    role: {
         type: String,
         required: true,
-        enum: ['client', 'colaborator']
+        enum: ['client', 'admin']
     },
-    nameCompany: {
-        type: String,
-        required: function() {
-            return this.typeAccount === 'colaborator';
-        }
+    active: {
+        type: Boolean,
+        default: true
     },
-    phoneCompany: {
-        type: String,
-        required: function() {
-            return this.typeAccount === 'colaborator';
-        }
-    },
-    adressCompany: {
-        type: String,
-        required: function() {
-            return this.typeAccount === 'colaborator';
-        }
-    },
-    logoCompany: {
-        type: String,
+    updateAt: {
+        type: Date,
+        default: Date.now
     },
     createdAt: {
         type: Date,
@@ -51,11 +36,11 @@ const loginSchema = new mongoose.Schema({
     }
 });
 
-loginSchema.pre("save", async function(next) {
+usersSchema.pre("save", async function(next) {
     const hash = await bcryptjs.hash(this.password, 10);
     this.password = hash;
 });
 
-const user = mongoose.model("Login", loginSchema);
+const user = mongoose.model("Users", usersSchema);
 
 module.exports = user;

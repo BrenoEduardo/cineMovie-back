@@ -1,114 +1,50 @@
 const express = require("express");
-const UserModel = require("../model/User");
-const ProductsModel = require("../model/Product");
+const MoviesModel = require("../model/Movies");
+const AvaliationModel = require("../model/Avaliation");
 
 const router = express.Router();
 
-router.get("/getAllCompanys", async (req, res) => {
+router.get("/getAllMovies", async (req, res) => {
   try {
-    const companies = await UserModel.find({ typeAccount: "colaborator" });
-    return res.json({
-      error: false,
-      data: companies,
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500);
-  }
-});
-
-router.post("/filterCompanies", async (req, res) => {
-  try {
-    const { filter } = req.body;
-    const companiesPromise = UserModel.find({
-      typeAccount: "colaborator",
-      nameCompany: { $regex: filter, $options: "i" },
-    });
-
-    const productsPromise = ProductsModel.find({
-      $or: [
-        { productName: { $regex: filter, $options: "i" } },
-        { productDescription: { $regex: filter, $options: "i" } },
-      ],
-    });
-
-    const [companies, products] = await Promise.all([
-      companiesPromise,
-      productsPromise,
-    ]);
-
-    const companyPromises = products.map(async (product) => {
-      const userId = product.userId;
-      const company = await UserModel.find(userId);
-      return company;
-    });
-
-    const companiesFromProducts = await Promise.all(companyPromises);
-    const allCompanies = companies.concat(...companiesFromProducts);
-    const uniqueCompanies = Array.from(
-      new Set(allCompanies.map(JSON.stringify))
-    ).map(JSON.parse);
+    const movies = await MoviesModel.find();
 
     return res.json({
       error: false,
-      data: uniqueCompanies,
+      data: movies,
     });
   } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ error: true, message: "Internal Server Error" });
+    return res.status(500).json({
+      error: true,
+      message: "Ocorreu um erro ao buscar os usuários.",
+    });
   }
 });
-
-router.put("/editProfile", async (req, res) => {
+router.post("/avaliation-movies", async (req, res) => {
   try {
-    const { _id, email, name } = req.body;
+    const { idUser, rating, infoMovie } = req.body;
 
-    const updateFields = {};
-    if (email) {
-      updateFields.email = email;
+    if (!idUser || !rating || !infoMovie) {
+      return res.status(400).json({ error: "Missing information in request body" });
     }
-    if (name) {
-      updateFields.name = name;
-    }
+    await AvaliationModel.create(req.body)
 
-    const existingUser = await UserModel.findOne({ email: email });
-    if (existingUser && existingUser._id.toString() !== _id) {
-      return res.status(400).json({
-        error: true,
-        message: "Email already exist",
-      });
+    const { _id } = infoMovie;
+    const avaliationsForMovie = await AvaliationModel.find({ "infoMovie._id": _id });
+    let totalRating = 0;
+    for (const aval of avaliationsForMovie) {
+      totalRating += aval.rating;
     }
 
-    if (Object.keys(updateFields).length === 0) {
-      return res.status(400).json({
-        error: true,
-        message: "Nenhum campo fornecido para atualização",
-      });
-    }
-
-    const result = await UserModel.updateOne(
-      { _id: _id },
-      { $set: updateFields }
+    const averageRating = totalRating / avaliationsForMovie.length;
+    await MoviesModel.findByIdAndUpdate(
+      _id,
+      { $set: { ratings: averageRating, quantRatings: avaliationsForMovie.length } },
     );
 
-    if (result) {
-      return res.json({
-        success: true,
-        message: "Perfil atualizado com sucesso",
-      });
-    } else {
-      return res
-        .status(404)
-        .json({ error: true, message: "Usuário não encontrado" });
-    }
+    return res.json({ success: true, message: "Avaliação registrada com sucesso" });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ error: true, message: "Internal Server Error" });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
 module.exports = router;
